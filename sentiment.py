@@ -137,6 +137,52 @@ def process_sentiment(df, text_col='Text', method='vader'):
     df['Sentiment'] = df[text_col].apply(lambda x: analyze_sentiment(str(x), method))
     return df
 
+def add_technical_indicators(df, rsi_period=14, macd_fast=12, macd_slow=26, macd_signal=9, bb_period=20):
+    """
+    Compute RSI, MACD, and Bollinger Bands, and add them as new columns.
+    """
+    # Ensure 'Close' exists
+    if 'Close' not in df.columns:
+        raise ValueError("DataFrame must contain 'Close' price column to compute indicators.")
+
+    # ====================
+    # RSI
+    # ====================
+    close = df['Close']
+    delta = close.diff()
+
+    up = delta.clip(lower=0)
+    down = -1 * delta.clip(upper=0)
+
+    ema_up = up.ewm(span=rsi_period, adjust=False).mean()
+    ema_down = down.ewm(span=rsi_period, adjust=False).mean()
+
+    rs = ema_up / ema_down
+    df['RSI'] = 100 - (100 / (1 + rs))
+
+    # ====================
+    # MACD
+    # ====================
+    ema_fast = close.ewm(span=macd_fast, adjust=False).mean()
+    ema_slow = close.ewm(span=macd_slow, adjust=False).mean()
+    df['MACD'] = ema_fast - ema_slow
+    df['MACD_signal'] = df['MACD'].ewm(span=macd_signal, adjust=False).mean()
+    df['MACD_hist'] = df['MACD'] - df['MACD_signal']
+
+    # ====================
+    # Bollinger Bands
+    # ====================
+    df['BB_middle'] = close.rolling(window=bb_period).mean()
+    df['BB_std'] = close.rolling(window=bb_period).std()
+
+    df['BB_upper'] = df['BB_middle'] + (2 * df['BB_std'])
+    df['BB_lower'] = df['BB_middle'] - (2 * df['BB_std'])
+
+    # Drop the 'BB_std' helper if you prefer
+    df.drop(columns=['BB_std'], inplace=True)
+
+    return df
+
 # 5. Merge Data
 
 def merge_data(stock_data, sentiment_data):
@@ -159,7 +205,10 @@ def merge_data(stock_data, sentiment_data):
 # 6. Example Training Models
 ##########################################
 def train_random_forest(data):
-    features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0)
+    #features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0)
+    features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close',
+                     'RSI', 'MACD', 'MACD_signal', 'MACD_hist',
+                     'BB_upper', 'BB_middle', 'BB_lower']].fillna(0)
     target = data['Target']
     
     X_train, X_test, y_train, y_test = train_test_split(
@@ -177,7 +226,10 @@ def train_random_forest(data):
     return model, accuracy_score(y_test, y_pred)
 
 def train_logistic_regression(data):
-    features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0)
+    # features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0)
+    features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close',
+                     'RSI', 'MACD', 'MACD_signal', 'MACD_hist',
+                     'BB_upper', 'BB_middle', 'BB_lower']].fillna(0)
     target = data['Target']
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -195,7 +247,10 @@ def train_logistic_regression(data):
     return model, accuracy_score(y_test, y_pred)
 
 def train_naive_bayes(data):
-    features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0)
+    # features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0)
+    features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close',
+                     'RSI', 'MACD', 'MACD_signal', 'MACD_hist',
+                     'BB_upper', 'BB_middle', 'BB_lower']].fillna(0)
     target = data['Target']
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -213,7 +268,10 @@ def train_naive_bayes(data):
     return model, accuracy_score(y_test, y_pred)
 
 def train_rnn(data):
-    features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0).values
+    # features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0).values
+    features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close',
+                     'RSI', 'MACD', 'MACD_signal', 'MACD_hist',
+                     'BB_upper', 'BB_middle', 'BB_lower']].fillna(0)
     target = data['Target'].values
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -241,7 +299,10 @@ def train_rnn(data):
     return model, accuracy
 
 def train_cnn(data):
-    features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0).values
+    # features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0).values
+    features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close',
+                     'RSI', 'MACD', 'MACD_signal', 'MACD_hist',
+                     'BB_upper', 'BB_middle', 'BB_lower']].fillna(0)
     target = data['Target'].values
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -334,8 +395,9 @@ def plot_sentiment_distribution(df, stock_label="GOOG"):
 
 if __name__ == "__main__":
     # 1) Fetch real financial news from NewsAPI
-    api_key = "0341e1c1300a4e62b0fcdd849984821c"   
-    news_df = fetch_financial_news(api_key=api_key, query="META", days_ago=7)
+    # api_key = "0341e1c1300a4e62b0fcdd849984821c"   
+    api_key = "0e3e57b6a1a34639a40ea9791b64be6f"
+    news_df = fetch_financial_news(api_key=api_key, query="GOOG", days_ago=7)
     print("News DataFrame (raw):")
     print(news_df.head())
 
@@ -358,9 +420,10 @@ if __name__ == "__main__":
 
     # 2) Fetch stock data
     ticker = "NVDA"
-    start_date = "2024-12-01"
-    end_date = "2025-01-25"
+    start_date = "2024-10-01"
+    end_date = "2025-01-26"
     stock_data = fetch_stock_data(ticker, start_date, end_date)
+    stock_data = add_technical_indicators(stock_data)
 
     # 3) Merge the daily sentiment with the stock DataFrame
     merged_data = merge_data(stock_data, daily_sent)
@@ -393,7 +456,7 @@ if __name__ == "__main__":
 
     # 7) Plot final sentiment distribution
     plt.show()
-    # plot_sentiment_distribution(merged_data, stock_label=ticker)
+    plot_sentiment_distribution(merged_data, stock_label=ticker)
 
      # 8) Extra evaluation metrics listing precicsion, recall, F1 score for all  the different classifiers for GOOG
     rf_model = train_random_forest(merged_data)
@@ -429,6 +492,7 @@ if __name__ == "__main__":
 
         # 2) Fetch stock data
         stock_df = fetch_stock_data(ticker, start_date, end_date)
+        stock_df = add_technical_indicators(stock_df)       #additional technical indicators
 
         for method in sentiment_methods:
             # 3) Process sentiment
@@ -445,8 +509,8 @@ if __name__ == "__main__":
             merged_df = merge_data(stock_df, daily_sent)
 
             # Optionally, plot the stock & sentiment for this method/ticker
-            plt.show()
-            plot_stock_and_sentiment(merged_df, stock_label=f"{ticker}-{method}")
+            # plt.show()
+            # plot_stock_and_sentiment(merged_df, stock_label=f"{ticker}-{method}")
 
             # 5) Train classifiers
             for clf_name, clf_func in classifiers.items():
@@ -463,10 +527,9 @@ if __name__ == "__main__":
     # Convert results to DataFrame
     results_df = pd.DataFrame(results_list)
     print("\n--- Final Results DataFrame ---")
-    print(results_df.head(20))
+    print(results_df.head(100))
 
-    # 6) Plot overall accuracy comparisons
-    # Example: plot a grouped bar chart of accuracy by (Method, Classifier)
+    # 6) Plot of accuracy by (Method, Classifier)
     plt.figure(figsize=(12,6))
     sns.barplot(data=results_df, x="Method", y="Accuracy", hue="Classifier", errorbar=None)
     plt.ylim(0,1)
