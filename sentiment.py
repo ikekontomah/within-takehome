@@ -20,18 +20,16 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-##########################################
 # Initialize Sentiment Analyzers
-##########################################
+
 vader_analyzer = SentimentIntensityAnalyzer()
 transformer_sentiment = pipeline("sentiment-analysis", model="distilbert-base-uncased")
 
 
-##########################################
-# 1. Fetch Financial News for real bworld sentiments
-##########################################
+# 1. Fetch Financial News for real world sentiments
+''' Stocks being considered and their tickers:  = Apple: AAPL, Nvidia: NVDA, Amazon: AMZN, Qualcomm: QCOM, 
+Google: GOOG, Microsoft: MSFT, Meta: META, Netflix NFLX '''
 
-# stocks = AAPL, NVDA, AMZN, QCOM, GOOG, MSFT, META, NFLX
 def fetch_financial_news(api_key, query="NFLX", days_ago=30, language="en", page_size=100):
     """
     Fetch recent financial news articles using the NewsAPI for the last `days_ago` days.
@@ -89,10 +87,8 @@ def fetch_stock_data(ticker, start_date, end_date):
 
     return stock_data
 
+# 3. Methods for sentiment analysis
 
-##########################################
-# 3. Multiple Sentiment Methods
-##########################################
 FIN_POSITIVE_WORDS = {"profit", "growth", "gain", "bullish", "positive", "outperform"}
 FIN_NEGATIVE_WORDS = {"loss", "decline", "risk", "bearish", "negative", "underperform"}
 
@@ -131,9 +127,8 @@ def analyze_sentiment(text, method='vader'):
                          "'vader', 'transformer', 'textblob', or 'lm'.")
 
 
-##########################################
-# 4. Process Sentiment
-##########################################
+# 4. Process Sentiment for different methods
+
 def process_sentiment(df, text_col='Text', method='vader'):
     """
     Add a 'Sentiment' column to df based on the chosen method.
@@ -142,10 +137,8 @@ def process_sentiment(df, text_col='Text', method='vader'):
     df['Sentiment'] = df[text_col].apply(lambda x: analyze_sentiment(str(x), method))
     return df
 
-
-##########################################
 # 5. Merge Data
-##########################################
+
 def merge_data(stock_data, sentiment_data):
     # Convert index to a column in stock_data
     stock_data = stock_data.reset_index()
@@ -181,7 +174,7 @@ def train_random_forest(data):
     print(classification_report(y_test, y_pred))
     print("Accuracy Score:", accuracy_score(y_test, y_pred))
     
-    return model
+    return model, accuracy_score(y_test, y_pred)
 
 def train_logistic_regression(data):
     features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0)
@@ -199,7 +192,7 @@ def train_logistic_regression(data):
     print(classification_report(y_test, y_pred))
     print("Accuracy Score:", accuracy_score(y_test, y_pred))
 
-    return model
+    return model, accuracy_score(y_test, y_pred)
 
 def train_naive_bayes(data):
     features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0)
@@ -217,7 +210,7 @@ def train_naive_bayes(data):
     print(classification_report(y_test, y_pred))
     print("Accuracy Score:", accuracy_score(y_test, y_pred))
 
-    return model
+    return model, accuracy_score(y_test, y_pred)
 
 def train_rnn(data):
     features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0).values
@@ -245,7 +238,7 @@ def train_rnn(data):
     print(classification_report(y_test, y_pred))
     print(f"Accuracy Score: {accuracy:.3f}")
 
-    return model
+    return model, accuracy
 
 def train_cnn(data):
     features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0).values
@@ -276,12 +269,11 @@ def train_cnn(data):
     print(classification_report(y_test, y_pred))
     print(f"Accuracy Score: {accuracy:.3f}")
 
-    return model
+    return model, accuracy
 
-##########################################
-# 6. Visualization Helpers
-##########################################
-def plot_stock_and_sentiment(merged_df, title="Stock & Sentiment Over Time"):
+# 6. Visualization Helper functionsTools
+
+def plot_stock_and_sentiment(merged_df, stock_label="Stock & Sentiment Over Time"):
     """
     Plots the stock close price and sentiment on two y-axes over time.
     """
@@ -305,7 +297,7 @@ def plot_stock_and_sentiment(merged_df, title="Stock & Sentiment Over Time"):
     ax2.set_ylabel('Sentiment', color='red')
     ax2.tick_params(axis='y', labelcolor='red')
 
-    plt.title(title)
+    plt.title(stock_label)
     # Optional: combine legends
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
@@ -340,22 +332,20 @@ def plot_sentiment_distribution(df, stock_label="GOOG"):
     plt.ylabel("Frequency")
     plt.show()
 
-##########################################
-# 7. Example Pipeline Execution
-##########################################
 if __name__ == "__main__":
     # 1) Fetch real financial news from NewsAPI
-    api_key = "0341e1c1300a4e62b0fcdd849984821c"
-    news_df = fetch_financial_news(api_key=api_key, query="GOOG", days_ago=30)
+    api_key = "0341e1c1300a4e62b0fcdd849984821c"   
+    news_df = fetch_financial_news(api_key=api_key, query="META", days_ago=7)
     print("News DataFrame (raw):")
     print(news_df.head())
 
+    
     if not news_df.empty:
         # Combine 'title' + 'description' into a single text field
         news_df['Text'] = news_df['title'].astype(str) + " " + news_df['description'].astype(str)
 
         # Apply sentiment analysis (choose method: 'vader', 'textblob', 'transformer', or 'lm')
-        news_df = process_sentiment(news_df, text_col='Text', method='textblob')
+        news_df = process_sentiment(news_df, text_col='Text', method='transformer')
 
         # Extract just the date component from 'publishedAt'
         news_df['Date'] = pd.to_datetime(news_df['publishedAt']).dt.date
@@ -367,9 +357,9 @@ if __name__ == "__main__":
         daily_sent = pd.DataFrame(columns=['Date', 'Sentiment'])
 
     # 2) Fetch stock data
-    ticker = "GOOG"
-    start_date = "2023-01-01"
-    end_date = "2023-12-31"
+    ticker = "NVDA"
+    start_date = "2024-12-01"
+    end_date = "2025-01-25"
     stock_data = fetch_stock_data(ticker, start_date, end_date)
 
     # 3) Merge the daily sentiment with the stock DataFrame
@@ -380,30 +370,120 @@ if __name__ == "__main__":
 
      # 4) Visualize Stock & Sentiment Over Time
     plt.show()
-    plot_stock_and_sentiment(merged_data, title=f"{ticker} Stock & Sentiment")
+    plot_stock_and_sentiment(merged_data, stock_label=f"{ticker} Stock & Sentiment")
 
     # # 5) Train multiple classifiers & collect accuracy
-    # acc_results = {}
-    # rf_model, rf_acc = train_random_forest(merged_data)
-    # acc_results["RandomForest"] = rf_acc
+    acc_results = {}
+    rf_model, rf_acc = train_random_forest(merged_data)
+    acc_results["RandomForest"] = rf_acc
 
-    # lr_model, lr_acc = train_logistic_regression(merged_data)
-    # acc_results["LogisticRegression"] = lr_acc
+    lr_model, lr_acc = train_logistic_regression(merged_data)
+    acc_results["LogisticRegression"] = lr_acc
 
-    # nb_model, nb_acc = train_naive_bayes(merged_data)
-    # acc_results["NaiveBayes"] = nb_acc
-    # plt.show()
-    # plot_accuracy_scores(acc_results)
+    nb_model, nb_acc = train_naive_bayes(merged_data)
+    acc_results["NaiveBayes"] = nb_acc
+
+    rnn_model, rnn_acc = train_rnn(merged_data)
+    acc_results["RNN"] = rnn_acc
+
+    cnn_model, cnn_acc = train_cnn(merged_data)
+    acc_results["CNN"] = cnn_acc
+    plt.show()
+    plot_accuracy_scores(acc_results)
 
     # 7) Plot final sentiment distribution
     plt.show()
-    plot_sentiment_distribution(merged_data, stock_label=ticker)
+    # plot_sentiment_distribution(merged_data, stock_label=ticker)
 
-    # # 4) Train a Random Forest model
-    # rf_model = train_random_forest(merged_data)
-    # logistic_regression_model = train_logistic_regression(merged_data)
-    # naive_bayes_model = train_naive_bayes(merged_data)
-    #rnn_model = train_rnn(merged_data)
-    #cnn_model = train_cnn(merged_data)
+     # 8) Extra evaluation metrics listing precicsion, recall, F1 score for all  the different classifiers for GOOG
+    rf_model = train_random_forest(merged_data)
+    logistic_regression_model = train_logistic_regression(merged_data)
+    naive_bayes_model = train_naive_bayes(merged_data)
+    rnn_model = train_rnn(merged_data)
+    cnn_model = train_cnn(merged_data)
 
+    #Plot all the different stocks together
+    tickers = ["AAPL", "NVDA", "AMZN", "QCOM", "GOOG", "MSFT", "META", "NFLX"]
+    sentiment_methods = ["vader", "transformer", "textblob", "lm"]
+    classifiers = {
+        "RandomForest": train_random_forest,
+        "LogisticReg": train_logistic_regression,
+        "NaiveBayes": train_naive_bayes,
+        "RNN": train_rnn,
+        "CNN": train_cnn
+    }
+ 
+    # We'll store all results in a list of dicts
+    results_list = []
+
+    for ticker in tickers:
+        print(f"\n=== Processing {ticker} ===")
+        # 1) Fetch news
+        news_df = fetch_financial_news(api_key, query=ticker, days_ago=30)
+        if not news_df.empty:
+            news_df['Text'] = news_df['title'].astype(str) + " " + news_df['description'].astype(str)
+            news_df['publishedAt'] = pd.to_datetime(news_df['publishedAt'])
+        else:
+            print(f"No news found for {ticker}, creating empty DataFrame.")
+            news_df = pd.DataFrame(columns=['Text','publishedAt'])
+
+        # 2) Fetch stock data
+        stock_df = fetch_stock_data(ticker, start_date, end_date)
+
+        for method in sentiment_methods:
+            # 3) Process sentiment
+            temp_news = news_df.copy()
+            if not temp_news.empty:
+                temp_news = temp_news.dropna(subset=['Text'])  # drop rows with no text
+                temp_news = process_sentiment(temp_news, method=method)
+                temp_news['Date'] = temp_news['publishedAt'].dt.date
+                daily_sent = temp_news.groupby('Date')['Sentiment'].mean().reset_index()
+            else:
+                daily_sent = pd.DataFrame(columns=['Date','Sentiment'])
+
+            # 4) Merge
+            merged_df = merge_data(stock_df, daily_sent)
+
+            # Optionally, plot the stock & sentiment for this method/ticker
+            plt.show()
+            plot_stock_and_sentiment(merged_df, stock_label=f"{ticker}-{method}")
+
+            # 5) Train classifiers
+            for clf_name, clf_func in classifiers.items():
+                model, acc = clf_func(merged_df)
+                print(f"{ticker} | {method} | {clf_name} => Accuracy: {acc:.3f}")
+
+                results_list.append({
+                    "Ticker": ticker,
+                    "Method": method,
+                    "Classifier": clf_name,
+                    "Accuracy": acc
+                })
+
+    # Convert results to DataFrame
+    results_df = pd.DataFrame(results_list)
+    print("\n--- Final Results DataFrame ---")
+    print(results_df.head(20))
+
+    # 6) Plot overall accuracy comparisons
+    # Example: plot a grouped bar chart of accuracy by (Method, Classifier)
+    plt.figure(figsize=(12,6))
+    sns.barplot(data=results_df, x="Method", y="Accuracy", hue="Classifier", errorbar=None)
+    plt.ylim(0,1)
+    plt.title("Accuracy Across Sentiment Methods & Classifiers (All Stocks Aggregated)")
+    plt.show()
+
+    # Or break it down by Ticker
+    g = sns.catplot(data=results_df, x="Method", y="Accuracy", hue="Classifier",
+                    col="Ticker", col_wrap=4, kind="bar", sharey=False, errorbar=None)
+    g.set_titles("{col_name}")
+    g.set(ylim=(0,1))
+    g.fig.suptitle("Accuracy by Ticker, Method, and Classifier")
+    g.fig.subplots_adjust(top=0.88)
+    plt.show()
+
+
+
+
+   
 

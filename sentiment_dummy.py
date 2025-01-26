@@ -69,10 +69,6 @@ def fetch_financial_news(api_key, query="AAPL", days_ago=30, language="en", page
 
     return pd.DataFrame(articles_all)
 
-# news_api_key = "0341e1c1300a4e62b0fcdd849984821c"
-# news_df = fetch_financial_news(news_api_key, query="AAPL")
-# print(news_df.head())
-
 
 ### 1. Collect Financial Data
 def fetch_stock_data(ticker, start_date, end_date):
