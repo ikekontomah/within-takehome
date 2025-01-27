@@ -34,9 +34,9 @@ def fetch_financial_news(api_key, query="NFLX", days_ago=30, language="en", page
     """
     Fetch recent financial news articles using the NewsAPI for the last `days_ago` days.
 
-    :param api_key: Your NewsAPI key.
+    :param api_key: newsAPI key.
     :param query: Ticker or keyword, e.g., "AAPL" for Apple, NVDA for NVIDIA, QCOM for Qualcomm, NFLX for Netflix
-    :param days_ago: How many days back to fetch (default: 30).
+    :param days_ago: How many days back to fetch sentiments for
     :param language: Language code, e.g., 'en' for English.
     :param page_size: Max number of articles per request (up to 100).
     :return: A pandas DataFrame with 'title', 'description', 'publishedAt', etc.
@@ -139,15 +139,16 @@ def process_sentiment(df, text_col='Text', method='vader'):
 
 def add_technical_indicators(df, rsi_period=14, macd_fast=12, macd_slow=26, macd_signal=9, bb_period=20):
     """
-    Compute RSI, MACD, and Bollinger Bands, and add them as new columns.
+    Compute RSI, MACD, and Bollinger Bands, extra metrics to analyze the stocks and add them as new columns.
+    RSI: detect overbought/oversold conditions.
+    MACD: detect signal changes in momentum and movement of trends.
+    Bollinger Bands: reflects volatility (whether or not price is near historical extremes)
     """
     # Ensure 'Close' exists
     if 'Close' not in df.columns:
         raise ValueError("DataFrame must contain 'Close' price column to compute indicators.")
 
-    # ====================
     # RSI
-    # ====================
     close = df['Close']
     delta = close.diff()
 
@@ -160,25 +161,20 @@ def add_technical_indicators(df, rsi_period=14, macd_fast=12, macd_slow=26, macd
     rs = ema_up / ema_down
     df['RSI'] = 100 - (100 / (1 + rs))
 
-    # ====================
     # MACD
-    # ====================
     ema_fast = close.ewm(span=macd_fast, adjust=False).mean()
     ema_slow = close.ewm(span=macd_slow, adjust=False).mean()
     df['MACD'] = ema_fast - ema_slow
     df['MACD_signal'] = df['MACD'].ewm(span=macd_signal, adjust=False).mean()
     df['MACD_hist'] = df['MACD'] - df['MACD_signal']
 
-    # ====================
     # Bollinger Bands
-    # ====================
     df['BB_middle'] = close.rolling(window=bb_period).mean()
     df['BB_std'] = close.rolling(window=bb_period).std()
 
     df['BB_upper'] = df['BB_middle'] + (2 * df['BB_std'])
     df['BB_lower'] = df['BB_middle'] - (2 * df['BB_std'])
 
-    # Drop the 'BB_std' helper if you prefer
     df.drop(columns=['BB_std'], inplace=True)
 
     return df
@@ -201,9 +197,7 @@ def merge_data(stock_data, sentiment_data):
     return merged_data
 
 
-##########################################
 # 6. Example Training Models
-##########################################
 def train_random_forest(data):
     #features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close']].fillna(0)
     features = data[['Sentiment', 'Volume', 'Open', 'High', 'Low', 'Close',
@@ -394,9 +388,9 @@ def plot_sentiment_distribution(df, stock_label="GOOG"):
     plt.show()
 
 if __name__ == "__main__":
-    # 1) Fetch real financial news from NewsAPI
-    # api_key = "0341e1c1300a4e62b0fcdd849984821c"   
-    api_key = "0e3e57b6a1a34639a40ea9791b64be6f"
+    # Fetch real financial news from NewsAPI
+    api_key = "0341e1c1300a4e62b0fcdd849984821c"   
+    # api_key = "0e3e57b6a1a34639a40ea9791b64be6f"
     news_df = fetch_financial_news(api_key=api_key, query="GOOG", days_ago=7)
     print("News DataFrame (raw):")
     print(news_df.head())
@@ -406,7 +400,7 @@ if __name__ == "__main__":
         # Combine 'title' + 'description' into a single text field
         news_df['Text'] = news_df['title'].astype(str) + " " + news_df['description'].astype(str)
 
-        # Apply sentiment analysis (choose method: 'vader', 'textblob', 'transformer', or 'lm')
+        # Apply sentiment analysis method from 'vader', 'textblob', 'transformer', or 'lm')
         news_df = process_sentiment(news_df, text_col='Text', method='transformer')
 
         # Extract just the date component from 'publishedAt'
@@ -418,24 +412,24 @@ if __name__ == "__main__":
         # If no news is returned, create an empty DataFrame so we can still merge
         daily_sent = pd.DataFrame(columns=['Date', 'Sentiment'])
 
-    # 2) Fetch stock data
+    # Fetch stock data
     ticker = "NVDA"
-    start_date = "2024-10-01"
+    start_date = "2024-12-01"
     end_date = "2025-01-26"
     stock_data = fetch_stock_data(ticker, start_date, end_date)
     stock_data = add_technical_indicators(stock_data)
 
-    # 3) Merge the daily sentiment with the stock DataFrame
+    # Merge the daily sentiment with the stock DataFrame
     merged_data = merge_data(stock_data, daily_sent)
 
     print("\nMerged DataFrame (Stock + News Sentiment):")
     print(merged_data[['Date','Close','Sentiment']].head(10))
 
-     # 4) Visualize Stock & Sentiment Over Time
+    # Visualize Stock & Sentiment Over Time
     plt.show()
     plot_stock_and_sentiment(merged_data, stock_label=f"{ticker} Stock & Sentiment")
 
-    # # 5) Train multiple classifiers & collect accuracy
+    # Train all the different classifiers & collect accuracy
     acc_results = {}
     rf_model, rf_acc = train_random_forest(merged_data)
     acc_results["RandomForest"] = rf_acc
@@ -454,11 +448,11 @@ if __name__ == "__main__":
     plt.show()
     plot_accuracy_scores(acc_results)
 
-    # 7) Plot final sentiment distribution
+    # Plot final sentiment distribution
     plt.show()
     plot_sentiment_distribution(merged_data, stock_label=ticker)
 
-     # 8) Extra evaluation metrics listing precicsion, recall, F1 score for all  the different classifiers for GOOG
+    # Extra evaluation metrics listing precicsion, recall, F1 score for all  the different classifiers for GOOG
     rf_model = train_random_forest(merged_data)
     logistic_regression_model = train_logistic_regression(merged_data)
     naive_bayes_model = train_naive_bayes(merged_data)
@@ -481,7 +475,7 @@ if __name__ == "__main__":
 
     for ticker in tickers:
         print(f"\n=== Processing {ticker} ===")
-        # 1) Fetch news
+        # Fetch news
         news_df = fetch_financial_news(api_key, query=ticker, days_ago=30)
         if not news_df.empty:
             news_df['Text'] = news_df['title'].astype(str) + " " + news_df['description'].astype(str)
@@ -490,12 +484,12 @@ if __name__ == "__main__":
             print(f"No news found for {ticker}, creating empty DataFrame.")
             news_df = pd.DataFrame(columns=['Text','publishedAt'])
 
-        # 2) Fetch stock data
+        # Fetch stock data
         stock_df = fetch_stock_data(ticker, start_date, end_date)
         stock_df = add_technical_indicators(stock_df)       #additional technical indicators
 
         for method in sentiment_methods:
-            # 3) Process sentiment
+            # Process sentiment
             temp_news = news_df.copy()
             if not temp_news.empty:
                 temp_news = temp_news.dropna(subset=['Text'])  # drop rows with no text
@@ -505,14 +499,14 @@ if __name__ == "__main__":
             else:
                 daily_sent = pd.DataFrame(columns=['Date','Sentiment'])
 
-            # 4) Merge
+            # Merge
             merged_df = merge_data(stock_df, daily_sent)
 
             # Plot the stock & sentiment for this method/ticker
             # plt.show()
             # plot_stock_and_sentiment(merged_df, stock_label=f"{ticker}-{method}")
 
-            # 5) Train classifiers
+            # Train classifiers
             for clf_name, clf_func in classifiers.items():
                 model, acc = clf_func(merged_df)
                 print(f"{ticker} | {method} | {clf_name} => Accuracy: {acc:.3f}")
@@ -529,14 +523,14 @@ if __name__ == "__main__":
     print("\n--- Final Results DataFrame ---")
     print(results_df.head(100))
 
-    # 6) Plot of accuracy by (Method, Classifier)
+    # Plot of accuracy by (Method, Classifier)
     plt.figure(figsize=(12,6))
     sns.barplot(data=results_df, x="Method", y="Accuracy", hue="Classifier", errorbar=None)
     plt.ylim(0,1)
     plt.title("Accuracy Across Sentiment Methods & Classifiers (All Stocks Aggregated)")
     plt.show()
 
-    # Or break it down by Ticker
+    # break it down by ticker
     g = sns.catplot(data=results_df, x="Method", y="Accuracy", hue="Classifier",
                     col="Ticker", col_wrap=4, kind="bar", sharey=False, errorbar=None)
     g.set_titles("{col_name}")
