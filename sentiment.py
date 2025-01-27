@@ -508,7 +508,7 @@ if __name__ == "__main__":
             # 4) Merge
             merged_df = merge_data(stock_df, daily_sent)
 
-            # Optionally, plot the stock & sentiment for this method/ticker
+            # Plot the stock & sentiment for this method/ticker
             # plt.show()
             # plot_stock_and_sentiment(merged_df, stock_label=f"{ticker}-{method}")
 
