@@ -23,8 +23,13 @@ import seaborn as sns
 # Initialize Sentiment Analyzers
 
 vader_analyzer = SentimentIntensityAnalyzer()
-transformer_sentiment = pipeline("sentiment-analysis", model="distilbert-base-uncased")
+distilbert_sentiment = pipeline("sentiment-analysis", model="distilbert-base-uncased")
 
+finbert_sentiment = pipeline(
+    "sentiment-analysis", 
+    model="ProsusAI/finbert", 
+    tokenizer="ProsusAI/finbert"
+)
 
 # 1. Fetch Financial News for real world sentiments
 ''' Stocks being considered and their tickers:  = Apple: AAPL, Nvidia: NVDA, Amazon: AMZN, Qualcomm: QCOM, 
@@ -98,11 +103,24 @@ def analyze_sentiment_lm(text):
     neg_count = sum(word in FIN_NEGATIVE_WORDS for word in words)
     return float(pos_count - neg_count)
 
+def analyze_sentiment_finbert(text):
+    results = finbert_sentiment(text)
+    label = results[0]['label'].lower()  # 'positive', 'negative', or 'neutral'
+    score = results[0]['score']         # e.g. 0.993
+
+    if label == 'positive':
+        return score
+    elif label == 'negative':
+        return -score
+    else:
+        return 0.0
+
 def analyze_sentiment_textblob(text):
     return TextBlob(text).sentiment.polarity
 
-def analyze_sentiment_transformers(text):
-    result = transformer_sentiment(text)
+
+def analyze_sentiment_distilbert(text):
+    result = distilbert_sentiment(text)
     score = result[0]['score'] if result[0]['label'] == 'POSITIVE' else -result[0]['score']
     return score
 
@@ -112,19 +130,21 @@ def analyze_sentiment_vader(text):
 def analyze_sentiment(text, method='vader'):
     """
     Main dispatcher to analyze text using different sentiment methods.
-    Supported methods: 'vader', 'transformer', 'textblob', 'lm'.
+    Supported methods: 'vader', 'transformers: DistilBERT, FinBERT', 'textblob', 'lm'.
     """
     if method == 'vader':
         return analyze_sentiment_vader(text)
-    elif method == 'transformer':
-        return analyze_sentiment_transformers(text)
+    elif method == 'distilbert':
+        return analyze_sentiment_distilbert(text)
+    elif method == 'finbert':
+        return analyze_sentiment_finbert(text)
     elif method == 'textblob':
         return analyze_sentiment_textblob(text)
     elif method == 'lm':
         return analyze_sentiment_lm(text)
     else:
         raise ValueError("Unsupported sentiment method. Choose from: "
-                         "'vader', 'transformer', 'textblob', or 'lm'.")
+                         "'vader', 'distilbert', 'textblob', 'lm' or finBERT")
 
 
 # 4. Process Sentiment for different methods
@@ -140,7 +160,8 @@ def process_sentiment(df, text_col='Text', method='vader'):
 def add_technical_indicators(df, rsi_period=14, macd_fast=12, macd_slow=26, macd_signal=9, bb_period=20):
     """
     Compute RSI, MACD, and Bollinger Bands, extra metrics to analyze the stocks and add them as new columns.
-    RSI: detect overbought/oversold conditions.
+    RSI: detect overbought/oversold conditions. RSI > 70 ~ “overbought,” potential for short-term pullback.
+    RSI < 30 ~ considered “oversold,” potential for bounce or rally.
     MACD: detect signal changes in momentum and movement of trends.
     Bollinger Bands: reflects volatility (whether or not price is near historical extremes)
     """
@@ -389,9 +410,9 @@ def plot_sentiment_distribution(df, stock_label="GOOG"):
 
 if __name__ == "__main__":
     # Fetch real financial news from NewsAPI
-    api_key = "0341e1c1300a4e62b0fcdd849984821c"   
-    # api_key = "0e3e57b6a1a34639a40ea9791b64be6f"
-    news_df = fetch_financial_news(api_key=api_key, query="GOOG", days_ago=7)
+    #api_key = "0341e1c1300a4e62b0fcdd849984821c"   
+    api_key = "0e3e57b6a1a34639a40ea9791b64be6f"
+    news_df = fetch_financial_news(api_key=api_key, query="GOOG", days_ago=30)
     print("News DataFrame (raw):")
     print(news_df.head())
 
@@ -400,8 +421,8 @@ if __name__ == "__main__":
         # Combine 'title' + 'description' into a single text field
         news_df['Text'] = news_df['title'].astype(str) + " " + news_df['description'].astype(str)
 
-        # Apply sentiment analysis method from 'vader', 'textblob', 'transformer', or 'lm')
-        news_df = process_sentiment(news_df, text_col='Text', method='transformer')
+        # Apply sentiment analysis method from 'vader', 'textblob', 'distilbert', finbert or 'lm')
+        news_df = process_sentiment(news_df, text_col='Text', method='finbert')
 
         # Extract just the date component from 'publishedAt'
         news_df['Date'] = pd.to_datetime(news_df['publishedAt']).dt.date
@@ -461,7 +482,7 @@ if __name__ == "__main__":
 
     #Plot all the different stocks together
     tickers = ["AAPL", "NVDA", "AMZN", "QCOM", "GOOG", "MSFT", "META", "NFLX"]
-    sentiment_methods = ["vader", "transformer", "textblob", "lm"]
+    sentiment_methods = ["vader", "distilbert", "finbert", "textblob", "lm"]
     classifiers = {
         "RandomForest": train_random_forest,
         "LogisticReg": train_logistic_regression,
@@ -503,8 +524,8 @@ if __name__ == "__main__":
             merged_df = merge_data(stock_df, daily_sent)
 
             # Plot the stock & sentiment for this method/ticker
-            # plt.show()
-            # plot_stock_and_sentiment(merged_df, stock_label=f"{ticker}-{method}")
+            plt.show()
+            plot_stock_and_sentiment(merged_df, stock_label=f"{ticker}-{method}")
 
             # Train classifiers
             for clf_name, clf_func in classifiers.items():
