@@ -410,9 +410,10 @@ def plot_sentiment_distribution(df, stock_label="GOOG"):
 
 if __name__ == "__main__":
     # Fetch real financial news from NewsAPI
-    #api_key = "0341e1c1300a4e62b0fcdd849984821c"   
-    api_key = "0e3e57b6a1a34639a40ea9791b64be6f"
-    news_df = fetch_financial_news(api_key=api_key, query="GOOG", days_ago=30)
+    api_key = "0341e1c1300a4e62b0fcdd849984821c"   
+    # api_key = "0e3e57b6a1a34639a40ea9791b64be6f"
+    ticker = "QCOM"
+    news_df = fetch_financial_news(api_key=api_key, query=ticker, days_ago=20)
     print("News DataFrame (raw):")
     print(news_df.head())
 
@@ -434,9 +435,8 @@ if __name__ == "__main__":
         daily_sent = pd.DataFrame(columns=['Date', 'Sentiment'])
 
     # Fetch stock data
-    ticker = "NVDA"
     start_date = "2024-12-01"
-    end_date = "2025-01-26"
+    end_date = "2025-01-28"
     stock_data = fetch_stock_data(ticker, start_date, end_date)
     stock_data = add_technical_indicators(stock_data)
 
@@ -446,7 +446,7 @@ if __name__ == "__main__":
     print("\nMerged DataFrame (Stock + News Sentiment):")
     print(merged_data[['Date','Close','Sentiment']].head(10))
 
-    # Visualize Stock & Sentiment Over Time
+    # Plot1:Visualize Stock & Sentiment for a given ticker over time
     plt.show()
     plot_stock_and_sentiment(merged_data, stock_label=f"{ticker} Stock & Sentiment")
 
@@ -480,7 +480,7 @@ if __name__ == "__main__":
     rnn_model = train_rnn(merged_data)
     cnn_model = train_cnn(merged_data)
 
-    #Plot all the different stocks together
+    #Plot  2: Get metrics for all the sentiment analyzers across all the stocks all the different stocks together
     tickers = ["AAPL", "NVDA", "AMZN", "QCOM", "GOOG", "MSFT", "META", "NFLX"]
     sentiment_methods = ["vader", "distilbert", "finbert", "textblob", "lm"]
     classifiers = {
@@ -520,12 +520,14 @@ if __name__ == "__main__":
             else:
                 daily_sent = pd.DataFrame(columns=['Date','Sentiment'])
 
-            # Merge
             merged_df = merge_data(stock_df, daily_sent)
 
-            # Plot the stock & sentiment for this method/ticker
+            #Plot the stock & sentiment for this method/ticker
             plt.show()
             plot_stock_and_sentiment(merged_df, stock_label=f"{ticker}-{method}")
+
+            plt.show
+            plot_sentiment_distribution(merged_df, stock_label=f"{ticker}-{method}")
 
             # Train classifiers
             for clf_name, clf_func in classifiers.items():
